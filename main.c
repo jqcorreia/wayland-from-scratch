@@ -60,7 +60,16 @@ static void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface,
 
     // This should work by referencing uint8 directly i believe.
     uint32_t* pixels = (uint32_t*)&pool_data[offset];
-    memset(pixels, 50, width * height * 4);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            if (y > 100 && y < 300) {
+                pixels[y * width + x] = 0xFFFFFFFF;
+            }
+        }
+    }
+
+    /*memset(pixels, 50, width * height * 4);*/
 
     wl_surface_attach(state->surface, buffer, 0, 0);
     wl_surface_damage(state->surface, 0, 0, UINT32_MAX, UINT32_MAX);
