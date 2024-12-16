@@ -10,10 +10,12 @@ typedef struct app_state {
     struct wl_compositor* compositor;
     struct wl_shm* shm;
     struct xdg_wm_base* xdg_base;
+    struct wl_surface* surface;
 } app_state;
 
 void registry_handle_global(void* data, struct wl_registry* registry,
-    uint32_t name, const char* interface, uint32_t version)
+    uint32_t name, const char* interface,
+    uint32_t version)
 {
     printf("interface: '%s', version: %d, name: %d\n", interface, version, name);
     if (strcmp(interface, wl_compositor_interface.name) == 0) {
@@ -35,11 +37,10 @@ void registry_handle_global_remove(void* data, struct wl_registry* registry,
 {
     /* printf("Removed, name: %d\n", name); */
 }
-static void
-xdg_surface_configure(void* data,
-    struct xdg_surface* xdg_surface, uint32_t serial)
+static void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface,
+    uint32_t serial)
 {
-    struct wl_surface* state = data;
+    struct app_state* state = data;
     xdg_surface_ack_configure(xdg_surface, serial);
 
     const int width = 1920, height = 1080;
@@ -49,20 +50,21 @@ xdg_surface_configure(void* data,
     int fd = allocate_shm_file(shm_pool_size);
     uint8_t* pool_data = mmap(NULL, shm_pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-    struct wl_shm_pool* pool = wl_shm_create_pool(state.shm, fd, shm_pool_size);
+    struct wl_shm_pool* pool = wl_shm_create_pool(state->shm, fd, shm_pool_size);
+
     int index = 0;
     int offset = index * height * stride;
 
-    struct wl_buffer* buffer = wl_shm_pool_create_buffer(pool, offset,
-        width, height, stride, WL_SHM_FORMAT_XRGB8888);
+    struct wl_buffer* buffer = wl_shm_pool_create_buffer(
+        pool, offset, width, height, stride, WL_SHM_FORMAT_XRGB8888);
 
     // This should work by referencing uint8 directly i believe.
     uint32_t* pixels = (uint32_t*)&pool_data[offset];
-    memset(pixels, 0, width * height * 4);
+    memset(pixels, 50, width * height * 4);
 
-    wl_surface_attach(surface, buffer, 0, 0);
-    wl_surface_damage(surface, 0, 0, UINT32_MAX, UINT32_MAX);
-    wl_surface_commit(surface);
+    wl_surface_attach(state->surface, buffer, 0, 0);
+    wl_surface_damage(state->surface, 0, 0, UINT32_MAX, UINT32_MAX);
+    wl_surface_commit(state->surface);
 }
 
 static const struct xdg_surface_listener xdg_surface_listener = {
@@ -92,11 +94,14 @@ int main(int argc, char* argv[])
     wl_display_roundtrip(display);
 
     // Only after first round trip state.compositor is set
-    struct wl_surface* surface = wl_compositor_create_surface(state.compositor);
-    struct xdg_surface* xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_base, surface);
-    xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, surface);
+    state.surface = wl_compositor_create_surface(state.compositor);
+    struct xdg_surface* xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_base, state.surface);
+    xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, &state);
 
-    xdg_surface_get_toplevel(xdg_surface);
+    struct xdg_toplevel* toplevel = xdg_surface_get_toplevel(xdg_surface);
+
+    xdg_toplevel_set_title(toplevel, "Wayland test");
+    wl_surface_commit(state.surface);
 
     // Loop
     while (wl_display_dispatch(display) != -1) {

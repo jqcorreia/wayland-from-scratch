@@ -2,5 +2,6 @@ wayland.xml
 builddir
 main
 wayland-protocols
+.cache
 
 
