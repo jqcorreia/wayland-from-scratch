@@ -4,10 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <wayland-client.h>
+#include <xdg-shell.h>
 
 typedef struct app_state {
     struct wl_compositor* compositor;
     struct wl_shm* shm;
+    struct xdg_wm_base* xdg_base;
 } app_state;
 
 void registry_handle_global(void* data, struct wl_registry* registry,
@@ -22,6 +24,10 @@ void registry_handle_global(void* data, struct wl_registry* registry,
         app_state* state = data;
         state->shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
     }
+    if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+        app_state* state = data;
+        state->xdg_base = wl_registry_bind(registry, name, &xdg_wm_base_interface, 1);
+    }
 }
 
 void registry_handle_global_remove(void* data, struct wl_registry* registry,
@@ -29,6 +35,21 @@ void registry_handle_global_remove(void* data, struct wl_registry* registry,
 {
     /* printf("Removed, name: %d\n", name); */
 }
+static void
+xdg_surface_configure(void* data,
+    struct xdg_surface* xdg_surface, uint32_t serial)
+{
+    struct app_state* state = data;
+    xdg_surface_ack_configure(xdg_surface, serial);
+
+    struct wl_buffer* buffer = draw_frame(state);
+    wl_surface_attach(state->wl_surface, buffer, 0, 0);
+    wl_surface_commit(state->wl_surface);
+}
+
+static const struct xdg_surface_listener xdg_surface_listener = {
+    .configure = xdg_surface_configure,
+};
 
 int main(int argc, char* argv[])
 {
@@ -76,6 +97,10 @@ int main(int argc, char* argv[])
     wl_surface_attach(surface, buffer, 0, 0);
     wl_surface_damage(surface, 0, 0, UINT32_MAX, UINT32_MAX);
     wl_surface_commit(surface);
+
+    struct xdg_surface* xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_base, surface);
+    xdg_surface_get_toplevel(xdg_surface);
+
     // Loop
     while (wl_display_dispatch(display) != -1) {
     }
