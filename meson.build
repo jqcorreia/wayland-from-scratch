@@ -4,4 +4,10 @@ files = [
   'shm.c',
   'xdg-shell.c'
 ]
-executable('main', files, dependencies : [dependency('wayland-client')])
+
+deps = [
+  dependency('wayland-client'),
+]
+
+executable('main', files, dependencies : deps, link_args: ['-lschrift', '-lm'])
+
