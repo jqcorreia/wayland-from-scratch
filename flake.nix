@@ -19,6 +19,7 @@
           meson
           pkg-config
           ninja
+          libschrift
         ];
         shellHook = "zsh";
         name = "TUDO dev shell";
