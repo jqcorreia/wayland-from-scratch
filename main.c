@@ -144,6 +144,18 @@ void registry_handle_global_remove(void* data, struct wl_registry* registry,
     /* printf("Removed, name: %d\n", name); */
 }
 
+void frame_callback(void* data,
+    struct wl_callback* wl_callback,
+    uint32_t callback_data)
+{
+    printf("Callback!");
+    wl_callback_destroy(wl_callback);
+}
+
+static const struct wl_callback_listener frame_callback_listener = {
+    .done = frame_callback,
+};
+
 static const struct zwlr_layer_surface_v1_listener layer_listener = {
     .configure = layer_configure,
 };
@@ -187,7 +199,6 @@ int main(int argc, char* argv[])
     struct wl_registry* registry = wl_display_get_registry(display);
 
     wl_registry_add_listener(registry, &listener, &state);
-
     wl_display_roundtrip(display);
 
     // Only after first round trip state.compositor is set
@@ -202,6 +213,9 @@ int main(int argc, char* argv[])
     /* xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, &state); */
     /* struct xdg_toplevel* toplevel = xdg_surface_get_toplevel(xdg_surface); */
     /* xdg_toplevel_set_title(toplevel, "Wayland test"); */
+
+    struct wl_callback* callback = wl_surface_frame(state.surface);
+    wl_callback_add_listener(callback, &frame_callback_listener, &state);
 
     zwlr_layer_surface_v1_set_size(layer, 320, 100);
     zwlr_layer_surface_v1_set_anchor(layer, ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
