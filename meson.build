@@ -4,7 +4,9 @@ files = [
   'shm.c',
   'xdg-shell.c',
   'utils.c',
-  'wlr-layer-shell-unstable-v1.c'
+  'wlr-layer-shell-unstable-v1.c',
+  'xdg.c',
+  'init.c',
 ]
 
 deps = [

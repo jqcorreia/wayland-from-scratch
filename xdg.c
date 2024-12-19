@@ -1,4 +1,7 @@
-#include <xdg-shell.h>
+#include "shm.h"
+#include "types.h"
+#include "xdg-shell.h"
+#include <schrift.h>
 
 // Mess of a code for documentation purposes
 static void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface,
