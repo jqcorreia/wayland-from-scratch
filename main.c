@@ -1,11 +1,11 @@
+#include "gen/wlr-layer-shell-unstable-v1.h"
+#include "gen/xdg-shell.h"
 #include "init.h"
 #include "shm.h"
 #include "types.h"
 #include "utils.h"
 #include "wayland-client-core.h"
 #include "wayland-client-protocol.h"
-#include "wlr-layer-shell-unstable-v1.h"
-#include "xdg-shell.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

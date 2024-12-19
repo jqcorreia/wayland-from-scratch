@@ -1,6 +1,6 @@
+#include "gen/xdg-shell.h"
 #include "shm.h"
 #include "types.h"
-#include "xdg-shell.h"
 #include <schrift.h>
 
 // Mess of a code for documentation purposes

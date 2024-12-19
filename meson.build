@@ -1,12 +1,12 @@
 project('wayland', 'c')
 files = [
   'main.c',
-  'shm.c',
-  'xdg-shell.c',
-  'utils.c',
-  'wlr-layer-shell-unstable-v1.c',
-  'xdg.c',
   'init.c',
+  'shm.c',
+  'utils.c',
+  'xdg.c',
+  'gen/wlr-layer-shell-unstable-v1.c',
+  'gen/xdg-shell.c',
 ]
 
 deps = [
