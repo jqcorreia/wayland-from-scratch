@@ -20,6 +20,7 @@
           pkg-config
           ninja
           libschrift
+          gdb
         ];
         shellHook = "zsh";
         name = "TUDO dev shell";

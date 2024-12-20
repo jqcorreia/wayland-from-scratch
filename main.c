@@ -12,30 +12,11 @@
 #include <string.h>
 #include <wayland-client.h>
 
-static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surface,
-    uint32_t serial, uint32_t width, uint32_t height)
+void draw(app_state* state, uint8_t* data, uint32_t width, uint32_t height, uint32_t stride)
 {
-    printf("Layer configure\n");
-    struct app_state* state = data;
-    zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
-
-    const int stride = width * 4;
-    const int shm_pool_size = height * stride * 2;
-
-    int fd = allocate_shm_file(shm_pool_size);
-    struct wl_shm_pool* pool = wl_shm_create_pool(state->shm, fd, shm_pool_size);
-
-    uint8_t* pool_data = mmap(NULL, shm_pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-    struct wl_buffer* buffer = wl_shm_pool_create_buffer(
-        pool, 0, width, height, stride, WL_SHM_FORMAT_ARGB8888);
-
-    /* uint32_t* pixels = (uint32_t*)&pool_data[offset]; */
-
-    // Clear the surface (can't use the memset way for the life of me)
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            uint32_t* color = (uint32_t*)(pool_data + y * stride + x * 4);
+            uint32_t* color = (uint32_t*)(data + y * stride + x * 4);
             *color = 0x00FFFFFF;
             /* pixel* px = (pixel*)(pool_data + y * stride + x * 4); */
             /* px->alpha = 255; */
@@ -44,7 +25,6 @@ static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surf
             /* px->blue = 0; */
         }
     }
-
     /* int text_x = 10; */
     /* int text_y = 50; */
 
@@ -73,7 +53,7 @@ static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surf
     /*             unsigned char val = gp[y * img.width + x]; */
     /*             /1* printf("%d\n", val); *1/ */
     /*             if (val != 0) { */
-    /*                 pixel* px = (pixel*)(pool_data + (text_y + y + metrics.yOffset) * stride + (text_x + x) * 4); */
+    /*                 pixel* px = (pixel*)(data + (text_y + y + metrics.yOffset) * stride + (text_x + x) * 4); */
 
     /*                 unsigned char alpha = (val + 128) / 255; */
 
@@ -90,6 +70,28 @@ static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surf
     /*         } */
     /*     } */
     /* } */
+}
+
+static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surface,
+    uint32_t serial, uint32_t width, uint32_t height)
+{
+    printf("Layer configure\n");
+    struct app_state* state = data;
+    zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+
+    const int stride = width * 4;
+    const int shm_pool_size = height * stride * 2;
+
+    int fd = allocate_shm_file(shm_pool_size);
+    struct wl_shm_pool* pool = wl_shm_create_pool(state->shm, fd, shm_pool_size);
+
+    uint8_t* pool_data = mmap(NULL, shm_pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+    struct wl_buffer* buffer = wl_shm_pool_create_buffer(
+        pool, 0, width, height, stride, WL_SHM_FORMAT_ARGB8888);
+
+    // Clear the surface (can't use the memset way for the life of me)
+    draw(state, pool_data, width, height, stride);
 
     wl_surface_attach(state->surface, buffer, 0, 0);
     wl_surface_damage(state->surface, 0, 0, UINT32_MAX, UINT32_MAX);
