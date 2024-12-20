@@ -1,6 +1,7 @@
 #include "gen/wlr-layer-shell-unstable-v1.h"
 #include "gen/xdg-shell.h"
 #include "init.h"
+#include "schrift.h"
 #include "shm.h"
 #include "types.h"
 #include "utils.h"
@@ -10,14 +11,64 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <wayland-client.h>
+
+void draw_text(uint8_t* data, char* text, const SFT* font, uint32_t x, uint32_t y)
+{
+    int text_x = x;
+    int text_y = y;
+    int stride = 320 * 4; // Hardcoded for now
+
+    for (int i = 0; i < strlen(text); i++) {
+        SFT_Glyph glyph;
+        SFT_GMetrics metrics;
+        sft_lookup(font, text[i], &glyph);
+        /* printf("Glyph ID: %ld\n", glyph); */
+
+        sft_gmetrics(font, glyph, &metrics);
+        text_x += metrics.advanceWidth;
+
+        SFT_Image img = {
+            .width = metrics.minWidth,
+            .height = metrics.minHeight,
+        };
+
+        char gp[img.width * img.height];
+        img.pixels = gp;
+
+        sft_render(font, glyph, img);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                unsigned char val = gp[y * img.width + x];
+                /* printf("%d\n", val); */
+                if (val != 0) {
+                    pixel* px = (pixel*)(data + (text_y + y + metrics.yOffset) * stride + (text_x + x) * 4);
+
+                    unsigned char alpha = (val + 128) / 255;
+
+                    /* px->red = (0 * val + px->red * px->alpha * (1 - alpha)) / px->alpha; */
+                    /* px->green = (0 * val + px->green * px->alpha * (1 - alpha)) / px->alpha; */
+                    /* px->blue = (255 * val + px->blue * px->alpha * (1 - alpha)) / px->alpha; */
+                    /* px->alpha = alpha + px->alpha * (1 - alpha); */
+
+                    px->red = 0;
+                    px->green = 0;
+                    px->blue = 255;
+                    px->alpha = 255;
+                }
+            }
+        }
+    }
+}
 
 void draw(app_state* state, uint8_t* data, uint32_t width, uint32_t height, uint32_t stride)
 {
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             uint32_t* color = (uint32_t*)(data + y * stride + x * 4);
-            *color = 0x00FFFFFF;
+            *color = 0x00000000;
             /* pixel* px = (pixel*)(pool_data + y * stride + x * 4); */
             /* px->alpha = 255; */
             /* px->red = 255; */
@@ -25,6 +76,16 @@ void draw(app_state* state, uint8_t* data, uint32_t width, uint32_t height, uint
             /* px->blue = 0; */
         }
     }
+
+    time_t epoch;
+    epoch = time(NULL);
+    struct tm* info;
+
+    info = localtime(&epoch);
+    char buffer[20];
+
+    strftime(buffer, 20, "%H:%M", info);
+    draw_text(data, buffer, &state->sft, 10, 50);
     /* int text_x = 10; */
     /* int text_y = 50; */
 
@@ -72,15 +133,21 @@ void draw(app_state* state, uint8_t* data, uint32_t width, uint32_t height, uint
     /* } */
 }
 
-static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surface,
-    uint32_t serial, uint32_t width, uint32_t height)
+static void
+wl_buffer_release(void* data, struct wl_buffer* wl_buffer)
 {
-    printf("Layer configure\n");
-    struct app_state* state = data;
-    zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+    /* Sent by the compositor when it's no longer using this buffer */
+    wl_buffer_destroy(wl_buffer);
+}
 
+static const struct wl_buffer_listener wl_buffer_listener = {
+    .release = wl_buffer_release,
+};
+
+struct wl_buffer* get_buffer(app_state* state, uint32_t width, uint32_t height)
+{
     const int stride = width * 4;
-    const int shm_pool_size = height * stride * 2;
+    const int shm_pool_size = height * stride;
 
     int fd = allocate_shm_file(shm_pool_size);
     struct wl_shm_pool* pool = wl_shm_create_pool(state->shm, fd, shm_pool_size);
@@ -90,24 +157,54 @@ static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surf
     struct wl_buffer* buffer = wl_shm_pool_create_buffer(
         pool, 0, width, height, stride, WL_SHM_FORMAT_ARGB8888);
 
+    wl_shm_pool_destroy(pool);
+    close(fd);
+
+    // This munmap yields segfault, but this is in default documentation
+    /* munmap(pool_data, shm_pool_size); */
+
+    wl_buffer_add_listener(buffer, &wl_buffer_listener, NULL);
     // Clear the surface (can't use the memset way for the life of me)
     draw(state, pool_data, width, height, stride);
+
+    return buffer;
+}
+
+static void layer_configure(void* data, struct zwlr_layer_surface_v1* layer_surface,
+    uint32_t serial, uint32_t width, uint32_t height)
+{
+    printf("Layer configure\n");
+    struct app_state* state = data;
+    zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+
+    struct wl_buffer* buffer = get_buffer(state, width, height);
 
     wl_surface_attach(state->surface, buffer, 0, 0);
     wl_surface_damage(state->surface, 0, 0, UINT32_MAX, UINT32_MAX);
     wl_surface_commit(state->surface);
 }
 
-void frame_callback(void* data,
+static const struct wl_callback_listener frame_callback_listener;
+
+void wl_surface_frame_done(void* data,
     struct wl_callback* wl_callback,
     uint32_t callback_data)
 {
-    printf("Callback!");
+    app_state* state = (app_state*)data;
+    printf("Callback!\n");
     wl_callback_destroy(wl_callback);
+
+    wl_callback = wl_surface_frame(state->surface);
+    wl_callback_add_listener(wl_callback, &frame_callback_listener, state);
+
+    struct wl_buffer* buffer = get_buffer(state, 320, 100);
+    wl_surface_attach(state->surface, buffer, 0, 0);
+    wl_surface_damage_buffer(state->surface, 0, 0, INT32_MAX, INT32_MAX);
+    wl_surface_commit(state->surface);
 }
 
 static const struct wl_callback_listener frame_callback_listener = {
-    .done = frame_callback,
+    .done = wl_surface_frame_done,
 };
 
 static const struct zwlr_layer_surface_v1_listener layer_listener = {
@@ -118,8 +215,8 @@ SFT load_font(char* name)
 {
     int s = 2;
     SFT sft = {
-        .xScale = 32 * s,
-        .yScale = 32 * s,
+        .xScale = 16 * s,
+        .yScale = 16 * s,
         .flags = SFT_DOWNWARD_Y,
     };
     sft.font = sft_loadfile(name);
