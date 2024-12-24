@@ -191,7 +191,6 @@ void wl_surface_frame_done(void* data,
     uint32_t callback_data)
 {
     app_state* state = (app_state*)data;
-    printf("Callback!\n");
     wl_callback_destroy(wl_callback);
 
     wl_callback = wl_surface_frame(state->surface);
@@ -253,6 +252,7 @@ int main(int argc, char* argv[])
 
     zwlr_layer_surface_v1_set_size(layer, 320, 100);
     zwlr_layer_surface_v1_set_anchor(layer, ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+    /* zwlr_layer_surface_v1_set_exclusive_zone(layer, 100); */
     wl_surface_commit(state.surface);
 
     // Loop
